@@ -1,6 +1,7 @@
-from collections import Counter
+from typing import List, Dict, Set, NamedTuple
 
-map_ = {}
+
+map_: Dict[str, List[str]] = {}
 with open("input") as fd:
     for line in fd.readlines():
         a, b = line.strip().split("-")
@@ -8,23 +9,26 @@ with open("input") as fd:
         map_.setdefault(b, []).append(a)
 
 
-def next_(path):
-    p = path[-1]
+class Path(NamedTuple):
+    rooms: List[str]
+    small_twice: bool
+    lower: Set
+
+
+def next_(path: Path) -> List[Path]:
+    p = path.rooms[-1]
     if p == "end":
         return [path]
 
-    small_twice = any(
-        c > 1
-        for c in Counter(
-            r for r in path if r != "start" and r == r.lower()
-        ).values()
-    )
-
     res = []
     for n in map_[p]:
-        if n != "start" and (n == n.upper() or n not in path or not small_twice):
-            res.extend(next_(path[:] + [n]))
+        if n != "start" and (n.isupper() or n not in path.lower or not path.small_twice):
+            res.extend(next_(Path(
+                rooms=path.rooms[:] + [n],
+                small_twice=path.small_twice or n.islower() and n in path.lower,
+                lower=set(path.lower) | ({n} if n.islower() else set())
+            )))
     return res
 
 
-print(len(next_(["start"])))
+print(len(next_(Path(rooms=["start"], small_twice=False, lower=set()))))
