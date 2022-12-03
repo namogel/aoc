@@ -1,86 +1,90 @@
 from functools import reduce
 
-NOT_NUMBER = {"[", "]", ","}
 
-with open("input") as fd:
-    lines = [l.strip() for l in fd.readlines()]
+class Node:
+    def __init__(self, parent):
+        self.parent = parent
+        self.pair = None
+
+    def __str__(self):
+        return f"[{','.join(map(str, self.pair))}]"
 
 
-def explode(v, i):
-    start = i
-    if v[i+2] in NOT_NUMBER:
-        left = int(v[i+1])
-        i += 2
-    else:
-        left = int(v[i+1] + v[i+2])
-        i += 3
-    if v[i+2] in NOT_NUMBER:
-        right = int(v[i+1])
-        i += 2
-    else:
-        right = int(v[i+1] + v[i+2])
-        i += 3
+def get_child_explode(node, depth=4):
+    if type(node) == int:
+        return None
 
-    b = []
-    for j in range(start-1, -1, -1):
-        c = v[j]
-        if c in NOT_NUMBER:
-            b.append(c)
+    if depth == 1:
+        for child in node.pair:
+            if type(child) == Node:
+                return child
+        return None
+
+    child_a, child_b = node.pair
+    return get_child_explode(child_a, depth - 1) or get_child_explode(child_b, depth - 1)
+
+
+def get_child_split(node):
+    for child in node.pair:
+        if type(child) == int:
+            if child >= 10:
+                return node
         else:
-            if j > 0 and v[j-1] not in NOT_NUMBER:
-                val = int(v[j-1] + v[j])
-                j -= 1
-            else:
-                val = int(v[j])
-            result = v[:j] + str(left + val) + "".join(reversed(b))
-            break
+            cs = get_child_split(child)
+            if cs:
+                return cs
+
+    return None
+
+
+def explode(node):
+    left = node.parent
+    while left.parent and left == left.parent.pair[0]:
+        left = left.parent
+    if left.parent:
+        # while type(left.pair[0]) != int:
+        # while left.parent and type(left.parent.pair[0]) != int:
+        #     left = left.parent
+        # if left.parent:
+        #     left.pair[0] += node.pair[0]
+        raise ValueError
+
+    right = node.parent
+    while type(right.pair[0]) != int:
+        right = right.pair[0]
+    right.pair[0] += node.pair[1]
+
+    if node == node.parent.pair[0]:
+        node.parent.pair[0] = 0
+    elif node == node.parent.pair[1]:
+        node.parent.pair[1] = 0
     else:
-        result = "".join(reversed(b))
+        raise ValueError
 
-    result += "0"
-    for j in range(i+1, len(v)):
-        c = v[j]
-        if c in NOT_NUMBER:
-            result += c
-        else:
-            if j < len(v) - 1 and v[j+1] not in NOT_NUMBER:
-                val = int(v[j] + v[j+1])
-                j += 1
-            else:
-                val = int(v[j])
-            result += str(right + val) + v[j+1:]
+
+def split(node):
+    for i, child in enumerate(node.pair):
+        if type(child) == int and child >= 10:
+            node.pair[i] = Node(node)
+            node.pair[i].pair = [child // 2, child // 2 + child % 2]
             break
 
-    return red(result)
+
+def red(parent):
+    node = get_child_explode(parent)
+    if node:
+        explode(node)
+        return red(parent)
+
+    node = get_child_split(parent)
+    if node:
+        split(node)
+        return red(parent)
+
+    return parent
 
 
-def split(v):
-    for i in range(len(v) - 1):
-        if v[i] not in NOT_NUMBER and v[i+1] not in NOT_NUMBER:
-            n = int(v[i] + v[i+1])
-            return red(v[:i] + f"[{n//2},{n//2+n%2}]" + v[i+2:])
-
-    return v
-
-
-def red(v):
-    d = 0
-    for i in range(len(v)):
-        if v[i] == "[":
-            d += 1
-        elif v[i] == "]":
-            d -= 1
-        if d == 5:
-            return explode(v, i)
-
-    return split(v)
-
-
-def add(v1, v2):
-    return red(f"[{v1},{v2}]")
-
-
-def parse(v):
+def parse(v, parent=None):
     if len(v) == 1:
         return int(v)
 
@@ -92,19 +96,41 @@ def parse(v):
         elif v[i] == "]":
             d -= 1
         if d == 0:
-            return parse(v[:i+1]), parse(v[i+2:])
+            node = Node(parent)
+            node.pair = [parse(v[:i+1], node), parse(v[i+2:], node)]
+            return node
 
 
-def magnitude(v):
-    if type(v) == int:
-        return v
+def add(n1, n2):
+    node = Node(None)
+    node.pair = [n1, n2]
+    return red(node)
+
+
+def magnitude(node):
+    if type(node) == int:
+        return node
     else:
-        return 3 * magnitude(v[0]) + 2 * magnitude(v[1])
+        return 3 * magnitude(node.pair[0]) + 2 * magnitude(node.pair[1])
 
 
 def part1():
-    return magnitude(parse(reduce(add, lines)))
+    return magnitude(reduce(add, lines))
 
 
 def part2():
-    return max(magnitude(parse(add(n1, n2))) for n1 in lines for n2 in lines if n1 != n2)
+    return max(magnitude(add(n1, n2)) for n1 in lines for n2 in lines if n1 != n2)
+
+
+with open("input") as fd:
+    lines = [parse(l.strip()) for l in fd.readlines()]
+
+# print(part1())
+# print(part2())
+
+
+def d(s):
+    return str(explode(get_child_explode(parse(s))))
+
+
+assert d("[[[[[9,8],1],2],3],4]") == "[[[[0,9],2],3],4]"
