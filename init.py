@@ -1,7 +1,7 @@
 import os
 import shutil
 
-YEAR = "2022"
+YEAR = "2023"
 
 os.makedirs(YEAR)
 os.chdir(YEAR)
